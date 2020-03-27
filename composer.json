@@ -1,0 +1,31 @@
+{
+    "name": "phphacks/zend-mvc-oidc",
+    "description": "Authorization in compliance with OpenID Connect",
+    "type": "library",
+    "require": {
+        "zendframework/zend-mvc": "^3.1",
+        "lcobucci/jwt": "^3.3"
+    },
+    "require-dev": {
+        "zendframework/zend-test": "^3.2",
+        "phpunit/phpunit": "^7.2"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Zend\\Mvc\\OIDC\\" : "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\" : "tests"
+        }
+    },
+    "authors": [
+        {
+            "name": "Fernando Scolari",
+            "email": "fernandofscolari@gmail.com"
+        }
+    ],
+    "minimum-stability": "stable"
+}
