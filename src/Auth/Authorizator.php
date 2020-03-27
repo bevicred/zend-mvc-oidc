@@ -37,39 +37,72 @@ class Authorizator
     private $configurationParser;
 
     /**
+     * @var array
+     */
+    private $routesConfig;
+
+    /**
      * Authorizator constructor.
      *
-     * @param array $config
+     * @param array $moduleConfig
      * @param ServiceLocatorInterface $serviceManager
      *
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
      */
-    public function __construct(array $config, ServiceLocatorInterface $serviceManager)
+    public function __construct(array $moduleConfig, ServiceLocatorInterface $serviceManager)
     {
+        if (isset($moduleConfig['router']) && isset($moduleConfig['router']['routes'])) {
+            $this->routesConfig = $moduleConfig['router']['routes'];
+        }
+
         $this->serviceManager = $serviceManager;
 
         $this->configurationParser = new ConfigurationParser();
-        $this->configuration = $this->configurationParser->parse($config);
+        $this->configuration = $this->configurationParser->parse($moduleConfig);
     }
 
     /**
-     * @param RequestInterface $request
+     * @param Request $request
      *
      * @return bool
      * @throws BasicAuthorizationException
      */
-    public function authorize(RequestInterface $request): bool
+    public function authorize(Request $request): bool
     {
-        $headerToken = $this->getAuthorizationToken($request);
+        $headerToken = new Token($this->getAuthorizationToken($request));
 
-        $token = new Token($headerToken);
-        $result = $token->validate();
+        $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
-
-
-        return true;
+        return $this->isAuthorized($headerToken, $authorizeConfig);
     }
+
+    private function isAuthorized(Token $token, array $authorizeConfig): bool
+    {
+        $result = true;
+
+        foreach ($authorizeConfig as $claim) {
+            if (!$token->hasClaim($claim)) {
+                $result = false;
+                break;
+            }
+        }
+
+        return $result;
+    }
+
+    private function getAuthorizeConfiguration(Request $request): array
+    {
+        $url = $request->getUriString();
+
+        if (isset($this->routesConfig[$url])) {
+            if (isset($this->routesConfig[$url]['options']['defaults']['authorize'])) {
+                return $this->routesConfig[$url]['options']['defaults']['authorize'];
+            }
+        }
+
+        return [];
+   }
 
     /**
      * @param Request $request
@@ -79,7 +112,7 @@ class Authorizator
      */
     private function getAuthorizationToken(Request $request): string
     {
-        $headers = $request->getHeaders('Authorization: Bearer', null);
+        $headers = $request->getHeaders('Authorization', null);
         $token = '';
 
         if (!is_null($headers))

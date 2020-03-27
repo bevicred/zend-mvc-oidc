@@ -29,11 +29,6 @@ class TokenTest extends TestCase
     private $publicKey;
 
     /**
-     * @var string
-     */
-    private $privateKey;
-
-    /**
      * @var DateTime
      */
     private $now;
@@ -47,27 +42,30 @@ class TokenTest extends TestCase
     {
         $this->now = new DateTime();
 
-        $path = str_replace('\\', '/', realpath('teste.pem.pub'));
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
 
         $this->publicKey = 'file://' . $path;
-        $this->privateKey = 'Private Key';
         $this->issuer = 'http://issuedby.com/auth/realms/teste';
 
-        $signer = new Sha256();
-        $privateKey = new Key('file://teste.pem');
-
-
-        $jwt = (new Builder())
-            ->issuedBy($this->issuer)
-            ->issuedAt($this->now->getTimestamp())
-            ->canOnlyBeUsedAfter($this->now->getTimestamp() + 1)
-            ->expiresAt($this->now->getTimestamp() + 60)
-            ->getToken($signer, $privateKey);
+        $jwt = $this->createJwt();
 
         $this->token = new Token($jwt);
     }
 
-    public function testValidateToken()
+    private function createJwt(): \Lcobucci\JWT\Token
+    {
+        $signer = new Sha256();
+        $privateKey = new Key('file://teste.key');
+
+        return (new Builder())
+            ->issuedBy($this->issuer)
+            ->issuedAt($this->now->getTimestamp())
+            ->canOnlyBeUsedAfter($this->now->getTimestamp())
+            ->expiresAt($this->now->getTimestamp() + 60)
+            ->getToken($signer, $privateKey);
+    }
+
+    public function testValidateWithCorrectIssuerClaimTokenShouldReturnValidResult()
     {
         // arrange
         $configuration = new Configuration();
@@ -81,4 +79,21 @@ class TokenTest extends TestCase
         // assert
         $this->assertEquals(ValidationTokenResultEnum::VALID, $result);
     }
+
+    public function testValidateWithIncorrectIssuerClaimShouldReturnInvalidResult()
+    {
+        // arrange
+        $configuration = new Configuration();
+        $configuration->setPublicKey($this->publicKey);
+        $configuration->setRealmId('teste');
+        $configuration->setAuthServiceUrl('http://issuedby.com/bla/bla');
+
+        // act
+        $result = $this->token->validate($configuration);
+
+        // assert
+        $this->assertEquals(ValidationTokenResultEnum::INVALID, $result);
+    }
+
+
 }

@@ -5,6 +5,8 @@ namespace Zend\Mvc\OIDC\Module;
 use Zend\ModuleManager\ModuleManager;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Auth\Authorizator;
+use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
+use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 
@@ -31,6 +33,8 @@ abstract class AbstractModule implements ModuleInterface
     /**
      * @param MvcEvent $event
      *
+     * @throws AuthorizeException
+     * @throws BasicAuthorizationException
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
      */
@@ -42,6 +46,8 @@ abstract class AbstractModule implements ModuleInterface
         $request = $event->getRequest();
 
         $authorizator = new Authorizator($config, $serviceManager);
-        $authorizator->authorize($request);
+        if (!$authorizator->authorize($request)) {
+            throw new AuthorizeException('Authorization failed.');
+        }
     }
 }

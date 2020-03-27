@@ -58,6 +58,11 @@ class Token
         }
     }
 
+    public function hasClaim(string $value): bool
+    {
+        return $this->jwt->hasClaim($value);
+    }
+
     private function setValidationData(\DateTime $moment, Configuration $configuration): ValidationData
     {
         $data = new ValidationData($moment->getTimestamp());
