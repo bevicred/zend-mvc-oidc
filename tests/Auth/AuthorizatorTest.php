@@ -49,6 +49,11 @@ class AuthorizatorTest extends TestCase
     private $issuer;
 
     /**
+     * @var string
+     */
+    private $audience;
+
+    /**
      * setUp
      */
     public function setUp()
@@ -79,6 +84,27 @@ class AuthorizatorTest extends TestCase
         $module->onDispatch($this->mvcEvent);
     }
 
+    public function testWhenAnAuthorizedRequestIsMade(): void
+    {
+        $success = true;
+
+        try {
+            $this->request->setUri('/auth/login');
+
+            $token = $this->createJwt('SpecialPerson');
+
+            $this->request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+            $this->mvcEvent->setRequest($this->request);
+
+            $module = new Module();
+            $module->onDispatch($this->mvcEvent);
+        } catch (AuthorizeException $ex) {
+            $success = false;
+        }
+
+        $this->assertTrue($success);
+    }
+
     private function createJwt(string $claim): \Lcobucci\JWT\Token
     {
         $this->now = new DateTime();
@@ -87,6 +113,7 @@ class AuthorizatorTest extends TestCase
 
         $this->publicKey = 'file://' . $path;
         $this->issuer = 'http://issuedby.com/auth/realms/teste';
+        $this->audience = 'pos-api.com';
 
         $signer = new Sha256();
         $privateKey = new Key('file://teste.key');
@@ -96,7 +123,8 @@ class AuthorizatorTest extends TestCase
             ->issuedAt($this->now->getTimestamp())
             ->canOnlyBeUsedAfter($this->now->getTimestamp())
             ->expiresAt($this->now->getTimestamp() + 60)
-            ->withClaim('user_role', $claim)
+            ->permittedFor($this->audience)
+            ->withClaim('user_roles', $claim)
             ->getToken($signer, $privateKey);
     }
 }

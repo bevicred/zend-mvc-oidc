@@ -18,10 +18,6 @@ use Zend\Mvc\OIDC\Common\Model\Token;
  */
 class TokenTest extends TestCase
 {
-    /**
-     * @var Token
-     */
-    private $token;
 
     /**
      * @var string
@@ -46,10 +42,6 @@ class TokenTest extends TestCase
 
         $this->publicKey = 'file://' . $path;
         $this->issuer = 'http://issuedby.com/auth/realms/teste';
-
-        $jwt = $this->createJwt();
-
-        $this->token = new Token($jwt);
     }
 
     private function createJwt(): \Lcobucci\JWT\Token
@@ -62,6 +54,7 @@ class TokenTest extends TestCase
             ->issuedAt($this->now->getTimestamp())
             ->canOnlyBeUsedAfter($this->now->getTimestamp())
             ->expiresAt($this->now->getTimestamp() + 60)
+            ->permittedFor('pos-api.com')
             ->getToken($signer, $privateKey);
     }
 
@@ -72,9 +65,14 @@ class TokenTest extends TestCase
         $configuration->setPublicKey($this->publicKey);
         $configuration->setRealmId('teste');
         $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setAudience('pos-api.com');
+
+        $jwt = $this->createJwt();
+
+        $token = new Token($jwt);
 
         // act
-        $result = $this->token->validate($configuration);
+        $result = $token->validate($configuration);
 
         // assert
         $this->assertEquals(ValidationTokenResultEnum::VALID, $result);
@@ -87,9 +85,92 @@ class TokenTest extends TestCase
         $configuration->setPublicKey($this->publicKey);
         $configuration->setRealmId('teste');
         $configuration->setAuthServiceUrl('http://issuedby.com/bla/bla');
+        $configuration->setAudience('pos-api.com');
+
+        $jwt = $this->createJwt();
+
+        $token = new Token($jwt);
 
         // act
-        $result = $this->token->validate($configuration);
+        $result = $token->validate($configuration);
+
+        // assert
+        $this->assertEquals(ValidationTokenResultEnum::INVALID, $result);
+    }
+
+    public function testValidateWithIncorrectAudienceClaimShouldReturnInvalidResult()
+    {
+        // arrange
+        $configuration = new Configuration();
+        $configuration->setPublicKey($this->publicKey);
+        $configuration->setRealmId('teste');
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setAudience('wrong.pos-api.com');
+
+        $jwt = $this->createJwt();
+
+        $token = new Token($jwt);
+
+        // act
+        $result = $token->validate($configuration);
+
+        // assert
+        $this->assertEquals(ValidationTokenResultEnum::INVALID, $result);
+    }
+
+    public function testValidateWithExpiredTokenShouldReturnExpiredResult()
+    {
+        // arrange
+        $configuration = new Configuration();
+        $configuration->setPublicKey($this->publicKey);
+        $configuration->setRealmId('teste');
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setAudience('wrong.pos-api.com');
+
+        $signer = new Sha256();
+        $privateKey = new Key('file://teste.key');
+
+        $jwt = (new Builder())
+            ->issuedBy($this->issuer)
+            ->issuedAt($this->now->getTimestamp() - 10)
+            ->canOnlyBeUsedAfter($this->now->getTimestamp() - 9)
+            ->expiresAt($this->now->getTimestamp() - 9)
+            ->permittedFor('pos-api.com')
+            ->getToken($signer, $privateKey);
+
+        $token = new Token($jwt);
+
+        // act
+        $result = $token->validate($configuration);
+
+        // assert
+        $this->assertEquals(ValidationTokenResultEnum::EXPIRED, $result);
+    }
+
+    public function testValidateWithInvalidNotBeforeClaimShouldReturnInvalidResult()
+    {
+        // arrange
+        $configuration = new Configuration();
+        $configuration->setPublicKey($this->publicKey);
+        $configuration->setRealmId('teste');
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setAudience('wrong.pos-api.com');
+
+        $signer = new Sha256();
+        $privateKey = new Key('file://teste.key');
+
+        $jwt = (new Builder())
+            ->issuedBy($this->issuer)
+            ->issuedAt($this->now->getTimestamp())
+            ->canOnlyBeUsedAfter($this->now->getTimestamp() - 9)
+            ->expiresAt($this->now->getTimestamp() + 60)
+            ->permittedFor('pos-api.com')
+            ->getToken($signer, $privateKey);
+
+        $token = new Token($jwt);
+
+        // act
+        $result = $token->validate($configuration);
 
         // assert
         $this->assertEquals(ValidationTokenResultEnum::INVALID, $result);

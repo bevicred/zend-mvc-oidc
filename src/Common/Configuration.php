@@ -30,6 +30,12 @@ class Configuration
     private $authServiceUrl;
 
     /**
+     * @var string
+     */
+    private $audience;
+
+
+    /**
      * @return string
      */
     public function getClientId(): string
@@ -101,4 +107,22 @@ class Configuration
     {
         $this->authServiceUrl = $authServiceUrl;
     }
+
+    /**
+     * @return string
+     */
+    public function getAudience(): string
+    {
+        return $this->audience;
+    }
+
+    /**
+     * @param string $audience
+     */
+    public function setAudience(string $audience): void
+    {
+        $this->audience = $audience;
+    }
+
+
 }

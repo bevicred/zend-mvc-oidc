@@ -58,15 +58,20 @@ class Token
         }
     }
 
-    public function hasClaim(string $value): bool
+    public function hasClaim(string $name, string $value): bool
     {
-        return $this->jwt->hasClaim($value);
+        if ($this->jwt->hasClaim($name)) {
+            return ($this->jwt->getClaim($name) === $value);
+        }
+
+        return false;
     }
 
     private function setValidationData(\DateTime $moment, Configuration $configuration): ValidationData
     {
         $data = new ValidationData($moment->getTimestamp());
         $data->setIssuer($configuration->getRealmUrl());
+        $data->setAudience($configuration->getAudience());
 
         return $data;
     }
