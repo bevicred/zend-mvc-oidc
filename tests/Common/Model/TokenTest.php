@@ -44,6 +44,9 @@ class TokenTest extends TestCase
         $this->issuer = 'http://issuedby.com/auth/realms/teste';
     }
 
+    /**
+     * @return \Lcobucci\JWT\Token
+     */
     private function createJwt(): \Lcobucci\JWT\Token
     {
         $signer = new Sha256();
@@ -175,6 +178,4 @@ class TokenTest extends TestCase
         // assert
         $this->assertEquals(ValidationTokenResultEnum::INVALID, $result);
     }
-
-
 }

@@ -21,6 +21,11 @@ class Authorizator
 {
 
     /**
+     * @var Token
+     */
+    private $token;
+
+    /**
      * @var ServiceManager
      */
     private $serviceManager;
@@ -69,20 +74,25 @@ class Authorizator
      */
     public function authorize(Request $request): bool
     {
-        $headerToken = new Token($this->getAuthorizationToken($request));
+        $this->token = new Token($this->getAuthorizationToken($request));
 
         $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
-        return $this->isAuthorized($headerToken, $authorizeConfig);
+        return $this->isAuthorized($authorizeConfig);
     }
 
-    private function isAuthorized(Token $token, array $authorizeConfig): bool
+    public function getTokenClaims(): array
+    {
+        return $this->token->getClaims();
+    }
+
+    private function isAuthorized(array $authorizeConfig): bool
     {
         $result = false;
         $claimName = $authorizeConfig['requireClaim'];
 
         foreach ($authorizeConfig['values'] as $claimValue) {
-            if ($token->hasClaim($claimName, $claimValue)) {
+            if ($this->token->hasClaim($claimName, $claimValue)) {
                 $result = true;
                 break;
             }

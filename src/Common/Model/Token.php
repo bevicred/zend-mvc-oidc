@@ -2,8 +2,8 @@
 
 namespace Zend\Mvc\OIDC\Common\Model;
 
+use Lcobucci\JWT\Claim;
 use Lcobucci\JWT\Parser;
-use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
 use Lcobucci\JWT\ValidationData;
 use Zend\Mvc\OIDC\Common\Configuration;
@@ -16,6 +16,8 @@ use Zend\Mvc\OIDC\Common\Enum\ValidationTokenResultEnum;
  */
 class Token
 {
+    private const FORBIDDEN_CLAIMS = ['aud', 'iss', 'nbf', 'nonce', 'iat', 'exp'];
+
     /**
      * @var string
      */
@@ -49,7 +51,7 @@ class Token
 
         $expired = $this->jwt->isExpired($now);
 
-        if ($valid && $validSignature){
+        if ($valid && $validSignature) {
             return ValidationTokenResultEnum::VALID;
         } else if ($expired && $validSignature) {
             return ValidationTokenResultEnum::EXPIRED;
@@ -65,6 +67,21 @@ class Token
         }
 
         return false;
+    }
+
+    public function getClaims(): array
+    {
+        $result = [];
+        $claims = $this->jwt->getClaims();
+
+        /** @var Claim $key */
+        foreach ($claims as $key) {
+            if (!in_array($key->getName(), self::FORBIDDEN_CLAIMS)) {
+                $result[$key->getName()] = $this->jwt->getClaim($key->getName());
+            }
+        }
+
+        return $result;
     }
 
     private function setValidationData(\DateTime $moment, Configuration $configuration): ValidationData

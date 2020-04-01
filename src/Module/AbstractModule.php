@@ -9,6 +9,9 @@ use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
+use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
+use Zend\ServiceManager\ServiceLocatorInterface;
+use Zend\ServiceManager\ServiceManager;
 
 /**
  * Class AbstractModule
@@ -27,7 +30,7 @@ abstract class AbstractModule implements ModuleInterface
 
         $eventManager = $manager->getEventManager();
         $sharedEventManager = $eventManager->getSharedManager();
-        $sharedEventManager->attach($namespace, 'dispatch', [$this, 'onDispatch'], 100);
+        $sharedEventManager->attach($namespace, 'dispatch', [$this, 'onDispatch'], 1000);
     }
 
     /**
@@ -42,6 +45,7 @@ abstract class AbstractModule implements ModuleInterface
     {
         $config = $this->getConfig();
 
+        /** @var ServiceManager $serviceManager */
         $serviceManager = $event->getApplication()->getServiceManager();
         $request = $event->getRequest();
 
@@ -49,5 +53,25 @@ abstract class AbstractModule implements ModuleInterface
         if (!$authorizator->authorize($request)) {
             throw new AuthorizeException('Authorization failed.');
         }
+
+        $authInformationProvider = $this->createAuthInformationProvider($authorizator->getTokenClaims());
+        $serviceManager->setService(AuthInformationProvider::class, $authInformationProvider);
+    }
+
+    private function createAuthInformationProvider(array $claimsFromToken): AuthInformationProvider
+    {
+        $authInformationProvider = new AuthInformationProvider();
+
+        $outClaims = [];
+        foreach ($claimsFromToken as $key=>$value){
+            $outClaims[$key] = $value;
+        }
+
+        $reflection = new \ReflectionObject($authInformationProvider);
+        $property = $reflection->getProperty('claims');
+        $property->setAccessible(true);
+        $property->setValue($authInformationProvider, $outClaims);
+
+        return $authInformationProvider;
     }
 }

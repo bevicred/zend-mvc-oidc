@@ -3,9 +3,11 @@
 namespace Tests\Auth;
 
 use DateTime;
+use Exception;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
+use Lcobucci\JWT\Token;
 use PHPUnit\Framework\TestCase;
 use Tests\Shared\Module;
 use Zend\Http\Request;
@@ -13,6 +15,10 @@ use Zend\Http\Response;
 use Zend\Mvc\Application;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
+use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
+use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
+use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
+use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
 use Zend\Mvc\Service\EventManagerFactory;
 use Zend\ServiceManager\ServiceManager;
 
@@ -69,6 +75,12 @@ class AuthorizatorTest extends TestCase
         $this->mvcEvent->setApplication(new Application($serviceManager));
     }
 
+    /**
+     * @throws AuthorizeException
+     * @throws BasicAuthorizationException
+     * @throws RealmConfigurationException
+     * @throws ServiceUrlConfigurationException
+     */
     public function testWhenAnUnauthorizedRequestIsMade(): void
     {
         $this->expectException(AuthorizeException::class);
@@ -84,6 +96,11 @@ class AuthorizatorTest extends TestCase
         $module->onDispatch($this->mvcEvent);
     }
 
+    /**
+     * @throws BasicAuthorizationException
+     * @throws RealmConfigurationException
+     * @throws ServiceUrlConfigurationException
+     */
     public function testWhenAnAuthorizedRequestIsMade(): void
     {
         $success = true;
@@ -105,7 +122,43 @@ class AuthorizatorTest extends TestCase
         $this->assertTrue($success);
     }
 
-    private function createJwt(string $claim): \Lcobucci\JWT\Token
+    /**
+     * @throws AuthorizeException
+     * @throws BasicAuthorizationException
+     * @throws RealmConfigurationException
+     * @throws ServiceUrlConfigurationException
+     */
+    public function testIfAnAuthorizedRequestIsMadeAndPutAuthInformationProviderOnServiceManager(): void
+    {
+        $this->request->setUri('/auth/login');
+
+        $token = $this->createJwt('SpecialPerson');
+
+        $this->request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $this->mvcEvent->setRequest($this->request);
+
+        $module = new Module();
+        $module->onDispatch($this->mvcEvent);
+
+        $application = $this->mvcEvent->getApplication();
+        $serviceManager = $application->getServiceManager();
+
+        $result = $serviceManager->get(AuthInformationProvider::class);
+
+        $this->assertInstanceOf(AuthInformationProvider::class, $result);
+
+        /** @var AuthInformationProvider $authInformation */
+        $authInformation = $result;
+        $this->assertTrue($authInformation->hasClaim('user_roles'));
+    }
+
+    /**
+     * @param string $claim
+     *
+     * @return Token
+     * @throws Exception
+     */
+    private function createJwt(string $claim): Token
     {
         $this->now = new DateTime();
 
@@ -125,6 +178,8 @@ class AuthorizatorTest extends TestCase
             ->expiresAt($this->now->getTimestamp() + 60)
             ->permittedFor($this->audience)
             ->withClaim('user_roles', $claim)
+            ->withClaim('user_role2', 'teste2')
+            ->withClaim('claim_array', ['teste1', 'teste3'])
             ->getToken($signer, $privateKey);
     }
 }
