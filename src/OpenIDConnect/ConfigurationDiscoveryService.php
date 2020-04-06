@@ -42,7 +42,7 @@ class ConfigurationDiscoveryService
             throw new OidcConfigurationDiscoveryException('OpenID Connect configuration discovery error.');
         }
 
-        return $this->adapt(json_decode($response['body'], true));
+        return $this->adapt($response['body']);
     }
 
     /**
