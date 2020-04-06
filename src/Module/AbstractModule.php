@@ -2,11 +2,17 @@
 
 namespace Zend\Mvc\OIDC\Module;
 
+use Zend\Http\Request;
 use Zend\ModuleManager\ModuleManager;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Auth\Authorizator;
+use Zend\Mvc\OIDC\Common\Exceptions\AudienceConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
+use Zend\Mvc\OIDC\Common\Exceptions\CertificateKeyException;
+use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
+use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
+use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
@@ -40,6 +46,12 @@ abstract class AbstractModule implements ModuleInterface
      * @throws BasicAuthorizationException
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
+     * @throws \ReflectionException
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     * @throws OidcConfigurationDiscoveryException
+     * @throws AudienceConfigurationException
      */
     public function onDispatch(MvcEvent $event): void
     {
@@ -47,6 +59,8 @@ abstract class AbstractModule implements ModuleInterface
 
         /** @var ServiceManager $serviceManager */
         $serviceManager = $event->getApplication()->getServiceManager();
+
+        /** @var Request $request */
         $request = $event->getRequest();
 
         $authorizator = new Authorizator($config, $serviceManager);
@@ -58,6 +72,12 @@ abstract class AbstractModule implements ModuleInterface
         $serviceManager->setService(AuthInformationProvider::class, $authInformationProvider);
     }
 
+    /**
+     * @param array $claimsFromToken
+     *
+     * @return AuthInformationProvider
+     * @throws \ReflectionException
+     */
     private function createAuthInformationProvider(array $claimsFromToken): AuthInformationProvider
     {
         $authInformationProvider = new AuthInformationProvider();

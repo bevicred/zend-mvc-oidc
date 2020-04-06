@@ -2,6 +2,8 @@
 
 namespace Zend\Mvc\OIDC\Common\Model;
 
+use DateTime;
+use Exception;
 use Lcobucci\JWT\Claim;
 use Lcobucci\JWT\Parser;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
@@ -39,9 +41,15 @@ class Token
         $this->jwt = (new Parser())->parse($this->rawContent);
     }
 
+    /**
+     * @param Configuration $configuration
+     *
+     * @return int
+     * @throws Exception
+     */
     public function validate(Configuration $configuration): int
     {
-        $now = new \DateTime();
+        $now = new DateTime();
 
         $data = $this->setValidationData($now, $configuration);
 
@@ -60,6 +68,12 @@ class Token
         }
     }
 
+    /**
+     * @param string $name
+     * @param string $value
+     *
+     * @return bool
+     */
     public function hasClaim(string $name, string $value): bool
     {
         if ($this->jwt->hasClaim($name)) {
@@ -69,6 +83,9 @@ class Token
         return false;
     }
 
+    /**
+     * @return array
+     */
     public function getClaims(): array
     {
         $result = [];
@@ -84,7 +101,13 @@ class Token
         return $result;
     }
 
-    private function setValidationData(\DateTime $moment, Configuration $configuration): ValidationData
+    /**
+     * @param DateTime $moment
+     * @param Configuration $configuration
+     *
+     * @return ValidationData
+     */
+    private function setValidationData(DateTime $moment, Configuration $configuration): ValidationData
     {
         $data = new ValidationData($moment->getTimestamp());
         $data->setIssuer($configuration->getRealmUrl());
@@ -93,6 +116,11 @@ class Token
         return $data;
     }
 
+    /**
+     * @param string $publicKey
+     *
+     * @return bool
+     */
     private function verifySignature(string $publicKey): bool
     {
         $signer = new Sha256();

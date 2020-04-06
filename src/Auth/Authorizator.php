@@ -2,13 +2,22 @@
 
 namespace Zend\Mvc\OIDC\Auth;
 
+use Exception;
 use Zend\Http\Request;
 use Zend\Mvc\OIDC\Common\Configuration;
+use Zend\Mvc\OIDC\Common\Enum\ValidationTokenResultEnum;
+use Zend\Mvc\OIDC\Common\Exceptions\AudienceConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
+use Zend\Mvc\OIDC\Common\Exceptions\CertificateKeyException;
+use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
+use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
+use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 use Zend\Mvc\OIDC\Common\Model\Token;
 use Zend\Mvc\OIDC\Common\Parse\ConfigurationParser;
+use Zend\Mvc\OIDC\OpenIDConnect\CertKeyService;
+use Zend\Mvc\OIDC\OpenIDConnect\ConfigurationDiscoveryService;
 use Zend\ServiceManager\ServiceLocatorInterface;
 use Zend\ServiceManager\ServiceManager;
 
@@ -46,6 +55,16 @@ class Authorizator
     private $routesConfig;
 
     /**
+     * @var ConfigurationDiscoveryService
+     */
+    private $configurationDiscoveryService;
+
+    /**
+     * @var CertKeyService
+     */
+    private $certKeyService;
+
+    /**
      * Authorizator constructor.
      *
      * @param array $moduleConfig
@@ -53,6 +72,7 @@ class Authorizator
      *
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
+     * @throws AudienceConfigurationException
      */
     public function __construct(array $moduleConfig, ServiceLocatorInterface $serviceManager)
     {
@@ -61,6 +81,10 @@ class Authorizator
         }
 
         $this->serviceManager = $serviceManager;
+
+        $this->configurationDiscoveryService = new ConfigurationDiscoveryService();
+
+        $this->certKeyService = new CertKeyService();
 
         $this->configurationParser = new ConfigurationParser();
         $this->configuration = $this->configurationParser->parse($moduleConfig);
@@ -71,6 +95,11 @@ class Authorizator
      *
      * @return bool
      * @throws BasicAuthorizationException
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     * @throws OidcConfigurationDiscoveryException
+     * @throws Exception
      */
     public function authorize(Request $request): bool
     {
@@ -78,14 +107,37 @@ class Authorizator
 
         $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
+        $certKey = $this->certKeyService->resolveCertificate($this->configuration, $this->serviceManager);
+
+        if (!is_null($certKey)) {
+            $this->configuration->setPublicKey($certKey);
+            $result = $this->token->validate($this->configuration);
+
+            if ($result == ValidationTokenResultEnum::INVALID) {
+                throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+            } else if ($result == ValidationTokenResultEnum::EXPIRED) {
+                throw new InvalidAuthorizationTokenException('Expired authorization token.');
+            }
+        } else {
+            throw new CertificateKeyException('Failed to retrieve the token certificate key.');
+        }
+
         return $this->isAuthorized($authorizeConfig);
     }
 
+    /**
+     * @return array
+     */
     public function getTokenClaims(): array
     {
         return $this->token->getClaims();
     }
 
+    /**
+     * @param array $authorizeConfig
+     *
+     * @return bool
+     */
     private function isAuthorized(array $authorizeConfig): bool
     {
         $result = false;
@@ -101,6 +153,11 @@ class Authorizator
         return $result;
     }
 
+    /**
+     * @param Request $request
+     *
+     * @return array
+     */
     private function getAuthorizeConfiguration(Request $request): array
     {
         $url = $request->getUriString();

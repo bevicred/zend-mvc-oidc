@@ -8,7 +8,9 @@ use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
 use Lcobucci\JWT\Token;
+use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use ReflectionException;
 use Tests\Shared\Module;
 use Zend\Http\Request;
 use Zend\Http\Response;
@@ -16,8 +18,13 @@ use Zend\Mvc\Application;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
+use Zend\Mvc\OIDC\Common\Exceptions\CertificateKeyException;
+use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
+use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
+use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
+use Zend\Mvc\OIDC\Common\Infra\HttpClient;
 use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
 use Zend\Mvc\Service\EventManagerFactory;
 use Zend\ServiceManager\ServiceManager;
@@ -60,26 +67,36 @@ class AuthorizatorTest extends TestCase
     private $audience;
 
     /**
+     * @var ServiceManager
+     */
+    private $serviceManager;
+
+    /**
      * setUp
      */
     public function setUp()
     {
         $this->request = new Request();
 
-        $serviceManager = new ServiceManager(include __DIR__ . '/../Shared/module.config.php');
-        $serviceManager->setFactory('EventManager', new EventManagerFactory());
-        $serviceManager->setService('Request', $this->request);
-        $serviceManager->setService('Response', new Response());
+        $this->serviceManager = new ServiceManager(include __DIR__ . '/../Shared/module.config.php');
+        $this->serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $this->serviceManager->setService('Request', $this->request);
+        $this->serviceManager->setService('Response', new Response());
 
         $this->mvcEvent = new MvcEvent();
-        $this->mvcEvent->setApplication(new Application($serviceManager));
+        $this->mvcEvent->setApplication(new Application($this->serviceManager));
     }
 
     /**
      * @throws AuthorizeException
      * @throws BasicAuthorizationException
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     * @throws OidcConfigurationDiscoveryException
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
+     * @throws ReflectionException
      */
     public function testWhenAnUnauthorizedRequestIsMade(): void
     {
@@ -98,12 +115,19 @@ class AuthorizatorTest extends TestCase
 
     /**
      * @throws BasicAuthorizationException
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     * @throws OidcConfigurationDiscoveryException
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
+     * @throws ReflectionException
      */
     public function testWhenAnAuthorizedRequestIsMade(): void
     {
         $success = true;
+
+        $this->mockHttpClient();
 
         try {
             $this->request->setUri('/auth/login');
@@ -122,11 +146,32 @@ class AuthorizatorTest extends TestCase
         $this->assertTrue($success);
     }
 
+    private function mockHttpClient(): void
+    {
+        /** @var HttpClient|MockObject $httpClient */
+        $httpClient = $this->getMockBuilder(HttpClient::class)
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $httpClient->expects($this->once())
+            ->method('sendRequest')
+            ->withAnyParameters()
+            ->willReturn(file_get_contents(__DIR__ . '/../Shared/JsonFiles/OpenIdConnectDiscoveryResult.json'));
+
+        $this->serviceManager->setService('HttpClient', $httpClient);
+
+    }
+
     /**
      * @throws AuthorizeException
      * @throws BasicAuthorizationException
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
+     * @throws ReflectionException
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     * @throws OidcConfigurationDiscoveryException
      */
     public function testIfAnAuthorizedRequestIsMadeAndPutAuthInformationProviderOnServiceManager(): void
     {
