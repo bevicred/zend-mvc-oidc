@@ -19,9 +19,9 @@ class ConfigurationDiscoveryService
      */
     private $httpClient;
 
-    public function __construct()
+    public function __construct(HttpClient $httpClient)
     {
-        $this->httpClient = new HttpClient();
+        $this->httpClient = $httpClient;
     }
 
     /**
@@ -43,7 +43,6 @@ class ConfigurationDiscoveryService
         }
 
         return $this->adapt(json_decode($response['body'], true));
-
     }
 
     /**

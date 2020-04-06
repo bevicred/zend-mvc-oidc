@@ -68,7 +68,9 @@ class ConfigurationParser
      */
     private function hasAuthServiceUrlConfiguration(array $configuration): void
     {
-        if (!isset($configuration[ConfigurationEnum::AUTH_SERVICE_URL])) {
+        if (!isset($configuration[ConfigurationEnum::AUTH_SERVICE_URL])
+            || $configuration[ConfigurationEnum::AUTH_SERVICE_URL] == null
+            || $configuration[ConfigurationEnum::AUTH_SERVICE_URL] == '') {
             throw new ServiceUrlConfigurationException('There is no Realm definitions in configuration');
         }
     }

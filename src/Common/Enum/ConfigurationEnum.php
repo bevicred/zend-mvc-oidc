@@ -13,6 +13,5 @@ interface ConfigurationEnum
     const AUTH_SERVICE_URL = 'auth_service_url';
     const REALM_ID = 'realmId';
     const CLIENT_ID = 'client_id';
-    const PUBLIC_KEY = 'public_key';
     const AUDIENCE = 'audience';
 }

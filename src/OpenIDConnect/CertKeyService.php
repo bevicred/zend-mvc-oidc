@@ -30,11 +30,14 @@ class CertKeyService
 
     /**
      * CertKeyService constructor.
+     *
+     * @param ConfigurationDiscoveryService $configurationDiscoveryService
+     * @param HttpClient $httpClient
      */
-    public function __construct()
+    public function __construct(ConfigurationDiscoveryService $configurationDiscoveryService, HttpClient $httpClient)
     {
-        $this->configurationDiscoveryService = new ConfigurationDiscoveryService();
-        $this->httpClient = new HttpClient();
+        $this->configurationDiscoveryService = $configurationDiscoveryService;
+        $this->httpClient = $httpClient;
     }
 
     /**

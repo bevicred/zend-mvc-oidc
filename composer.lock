@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "45ab803c8b6d461dab1b2c31edea66f7",
+    "content-hash": "1f45e7b4b60897b7264ffdd33a5e2b35",
     "packages": [
         {
             "name": "container-interop/container-interop",
@@ -92,6 +92,45 @@
                 "jwt"
             ],
             "time": "2019-05-24T18:30:49+00:00"
+        },
+        {
+            "name": "phphacks/zend-mvc-di",
+            "version": "v1.0.6",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/phphacks/zend-mvc-di.git",
+                "reference": "725507c386c49f1c9154c3d9306281764e38fc0b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/phphacks/zend-mvc-di/zipball/725507c386c49f1c9154c3d9306281764e38fc0b",
+                "reference": "725507c386c49f1c9154c3d9306281764e38fc0b",
+                "shasum": ""
+            },
+            "require": {
+                "zendframework/zend-servicemanager": "^3.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^7.2"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Zend\\Mvc\\Di\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Lucas A. de Araújo",
+                    "email": "lucas.araujo@bevicred.com.br"
+                }
+            ],
+            "description": "Dependency Injection Manager for Zend Framework MVC",
+            "time": "2018-06-29T14:02:06+00:00"
         },
         {
             "name": "psr/container",
@@ -2629,6 +2668,9 @@
     "stability-flags": [],
     "prefer-stable": false,
     "prefer-lowest": false,
-    "platform": [],
+    "platform": {
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
     "platform-dev": []
 }
