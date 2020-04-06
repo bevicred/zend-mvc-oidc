@@ -50,6 +50,9 @@ class CertKeyService
      */
     public function resolveCertificate(Configuration $configuration, ServiceLocatorInterface $serviceManager): ?string
     {
+        /** @var string|null $certKey */
+        $certKey = null;
+
         if ($serviceManager->has(ServiceEnum::CERT_KEY_CACHE_READER)) {
             /** @var CertKeyCacheReaderInterface $certKeyReader */
             $certKeyReader = $serviceManager->get(ServiceEnum::CERT_KEY_CACHE_READER);
@@ -112,7 +115,7 @@ class CertKeyService
             throw new JwkRecoveryException('JWK recovery error.');
         }
         /** @var array $jwk */
-        $jwk = json_decode($response['body'], true);
+        $jwk = $response['body'];
 
         if (isset($jwk['keys'])
             && isset($jwk['keys'][0])

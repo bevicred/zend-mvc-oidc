@@ -63,11 +63,9 @@ class ConfigurationDiscoveryServiceTest extends TestCase
         $this->assertInstanceOf(OidcConfiguration::class, $oidcConfiguration);
     }
 
-    public function testDiscoverMethodWhithErrorShouldThrowsOidcConfigurationDiscoveryException()
+    public function testDiscoverMethodWithErrorShouldThrowsOidcConfigurationDiscoveryException()
     {
         $this->expectException(OidcConfigurationDiscoveryException::class);
-
-        $jsonResult = json_decode(file_get_contents(__DIR__ . '/../Shared/JsonFiles/OpenIdConnectDiscoveryResult.json'), true);
 
         $this->httpClient
             ->expects($this->once())
