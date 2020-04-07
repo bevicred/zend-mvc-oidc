@@ -2,6 +2,7 @@
 
 namespace Zend\Mvc\OIDC\OpenIDConnect;
 
+use phpseclib\File\X509;
 use Zend\Mvc\OIDC\Common\Configuration;
 use Zend\Mvc\OIDC\Common\Enum\ServiceEnum;
 use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
@@ -121,7 +122,15 @@ class CertKeyService
             && isset($jwk['keys'][0])
             && isset($jwk['keys'][0]['x5c'])
             && isset($jwk['keys'][0]['x5c'][0])) {
-            return $jwk['keys'][0]['x5c'][0];
+
+            $certificate = new X509();
+            $certificate->loadX509($jwk['keys'][0]['x5c'][0]);
+
+            $certKey = $certificate->getPublicKey();
+
+            if (!is_null($certKey) && is_string($certKey)) {
+                return $certKey;
+            }
         }
 
         return null;
