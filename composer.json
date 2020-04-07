@@ -1,5 +1,5 @@
 {
-    "name": "phphacks/zend-mvc-oidc",
+    "name": "bevicred-digital/zend-mvc-oidc",
     "description": "Authorization in compliance with OpenID Connect",
     "type": "library",
     "require": {
