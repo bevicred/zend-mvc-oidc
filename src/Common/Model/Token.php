@@ -6,6 +6,7 @@ use DateTime;
 use Exception;
 use Lcobucci\JWT\Claim;
 use Lcobucci\JWT\Parser;
+use Lcobucci\JWT\Signer\Key;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
 use Lcobucci\JWT\ValidationData;
 use Zend\Mvc\OIDC\Common\Configuration;
@@ -124,6 +125,7 @@ class Token
     private function verifySignature(string $publicKey): bool
     {
         $signer = new Sha256();
-        return $this->jwt->verify($signer, $publicKey);
+        $key = new Key($publicKey);
+        return $this->jwt->verify($signer, $key);
     }
 }

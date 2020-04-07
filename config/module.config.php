@@ -1,14 +1,15 @@
 <?php
 
-use Zend\Router\Http\Literal;
+use Zend\Mvc\OIDC\Factory\OidcAuthEventListenerFactory;
+use Zend\Mvc\OIDC\Listener\OidcAuthListener;
 
 return [
     'listeners' => [
-        "Zend\Mvc\OIDC\Listener\OidcAuthListener"
+        OidcAuthListener::class
     ],
     'service_manager' => [
         'factories' => [
-            "Zend\Mvc\OIDC\Listener\OidcAuthListener" => \Zend\Mvc\OIDC\Factory\OidcAuthEventListenerFactory::class
+            OidcAuthListener::class => OidcAuthEventListenerFactory::class
         ]
     ]
 ];

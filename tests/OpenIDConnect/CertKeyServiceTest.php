@@ -103,8 +103,6 @@ class CertKeyServiceTest extends TestCase
             ->method('discover')
             ->willReturn($this->oidcConfiguration);
 
-        $jsonResult = json_decode(file_get_contents(__DIR__ . '/../Shared/JsonFiles/CertificateResponse.json'), true);
-
         $this->httpClient
             ->expects($this->once())
             ->method('sendRequest')

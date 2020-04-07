@@ -2,6 +2,7 @@
 
 namespace Zend\Mvc\OIDC\Listener;
 
+use Exception;
 use Zend\Http\Request;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Common\Configuration;
@@ -87,6 +88,7 @@ class OidcAuthEventHandler
      * @throws InvalidAuthorizationTokenException
      * @throws JwkRecoveryException
      * @throws OidcConfigurationDiscoveryException
+     * @throws Exception
      */
     public function handle(MvcEvent $mvcEvent)
     {
@@ -145,13 +147,10 @@ class OidcAuthEventHandler
     private function getAuthorizationToken(Request $request): string
     {
         $headers = $request->getHeaders('Authorization', null);
-        $token = '';
 
         if (!is_null($headers)) {
-            $token = $headers->toString();
-            $token = str_replace('Authorization: Bearer', null, $token);
-
-            return $token;
+            $tokenFromHeader = $headers->toString();
+            return str_replace('Authorization: Bearer', null, $tokenFromHeader);
         }
 
         throw new BasicAuthorizationException('Authorization exception.');

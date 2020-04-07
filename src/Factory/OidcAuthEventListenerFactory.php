@@ -36,20 +36,17 @@ class OidcAuthEventListenerFactory implements FactoryInterface
     {
         $configurationDiscoveryService = new ConfigurationDiscoveryService(new HttpClient());
         $certKeyService = new CertKeyService($configurationDiscoveryService, new HttpClient());
+        $configurationParser = new ConfigurationParser();
 
         $moduleConfig = $container->get('config');
         $applicationConfig = $container->get('ApplicationConfig');
         $oidcAuthEventHandler = new OidcAuthEventHandler(
             $applicationConfig,
             $moduleConfig,
-            new ConfigurationParser(),
+            $configurationParser,
             $certKeyService
         );
 
         return new OidcAuthListener($oidcAuthEventHandler);
-
-        //$globalConfiguration = $container->get('ApplicationConfig');
-
-        //return new $requestedName($globalConfiguration);
     }
 }

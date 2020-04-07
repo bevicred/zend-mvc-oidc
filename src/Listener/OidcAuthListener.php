@@ -28,9 +28,9 @@ class OidcAuthListener extends AbstractListenerAggregate
      */
     public function attach(EventManagerInterface $events, $priority = 1)
     {
-        $authEventHandler = $this->authEventHandler;
-        $callback = function (MvcEvent $mvcEvent) use($authEventHandler) {
-            $authEventHandler->handle($mvcEvent);
+        $eventHandler = $this->authEventHandler;
+        $callback = function (MvcEvent $mvcEvent) use($eventHandler) {
+            $eventHandler->handle($mvcEvent);
         };
 
         $this->listeners[] = $events->attach(MvcEvent::EVENT_DISPATCH, $callback, 1000);
