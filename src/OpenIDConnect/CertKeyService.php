@@ -121,7 +121,7 @@ class CertKeyService
             && isset($jwk['keys'][0])
             && isset($jwk['keys'][0]['x5c'])
             && isset($jwk['keys'][0]['x5c'][0])) {
-            return $jwk['keys'][0]['x5c'][0];
+            return "-----BEGIN CERTIFICATE-----\n" . $jwk['keys'][0]['x5c'][0] . "\n-----END CERTIFICATE-----";
         }
 
         return null;
