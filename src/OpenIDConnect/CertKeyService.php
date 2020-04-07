@@ -126,7 +126,7 @@ class CertKeyService
             $certificate = new X509();
             $certificate->loadX509($jwk['keys'][0]['x5c'][0], X509::FORMAT_PEM);
 
-            $certKey = $certificate->getPublicKey();
+            $certKey = (string)$certificate->getPublicKey();
 
             if (!is_null($certKey) && is_string($certKey)) {
                 return $certKey;
