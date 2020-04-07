@@ -115,7 +115,7 @@ class CertKeyService
             throw new JwkRecoveryException('JWK recovery error.');
         }
         /** @var array $jwk */
-        $jwk = $response['body'];
+        $jwk = json_decode($response['body'], true);
 
         if (isset($jwk['keys'])
             && isset($jwk['keys'][0])
