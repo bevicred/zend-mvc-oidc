@@ -70,6 +70,19 @@ class Token
     }
 
     /**
+     *
+     * @return array
+     */
+    public function getHeaders(): ?array
+    {
+        if (is_null($this->jwt)) {
+            return [];
+        }
+
+        return $this->jwt->getHeaders();
+    }
+
+    /**
      * @param string $name
      * @param string $value
      *

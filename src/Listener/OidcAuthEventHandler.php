@@ -10,7 +10,6 @@ use Zend\Mvc\OIDC\Common\Enum\ValidationTokenResultEnum;
 use Zend\Mvc\OIDC\Common\Exceptions\AudienceConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
-use Zend\Mvc\OIDC\Common\Exceptions\CertificateKeyException;
 use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
 use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
@@ -84,7 +83,6 @@ class OidcAuthEventHandler
      *
      * @throws AuthorizeException
      * @throws BasicAuthorizationException
-     * @throws CertificateKeyException
      * @throws InvalidAuthorizationTokenException
      * @throws JwkRecoveryException
      * @throws OidcConfigurationDiscoveryException
@@ -98,19 +96,19 @@ class OidcAuthEventHandler
 
         $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
-        $certKey = $this->certKeyService->resolveCertificate($this->configuration, $mvcEvent->getApplication()->getServiceManager());
+        $certKey = $this->certKeyService->resolveCertificate(
+            $this->configuration,
+            $this->token->getHeaders(),
+            $mvcEvent->getApplication()->getServiceManager()
+        );
 
-        if (is_null($certKey)) {
-            throw new CertificateKeyException('Failed to retrieve the token certificate key.');
-        } else {
-            $this->configuration->setPublicKey($certKey);
-            $result = $this->token->validate($this->configuration);
+        $this->configuration->setPublicKey($certKey);
+        $result = $this->token->validate($this->configuration);
 
-            if ($result == ValidationTokenResultEnum::INVALID) {
-                throw new InvalidAuthorizationTokenException('Invalid authorization token.');
-            } else if ($result == ValidationTokenResultEnum::EXPIRED) {
-                throw new InvalidAuthorizationTokenException('Expired authorization token.');
-            }
+        if ($result == ValidationTokenResultEnum::INVALID) {
+            throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+        } else if ($result == ValidationTokenResultEnum::EXPIRED) {
+            throw new InvalidAuthorizationTokenException('Expired authorization token.');
         }
 
         $this->isAuthorized($authorizeConfig);
@@ -150,7 +148,7 @@ class OidcAuthEventHandler
 
         if (!is_null($headers)) {
             $tokenFromHeader = $headers->toString();
-            return str_replace('Authorization: Bearer', null, $tokenFromHeader);
+            return str_replace('Authorization: Bearer ', null, $tokenFromHeader);
         }
 
         throw new BasicAuthorizationException('Authorization exception.');

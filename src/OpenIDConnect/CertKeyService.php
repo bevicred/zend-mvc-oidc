@@ -5,7 +5,10 @@ namespace Zend\Mvc\OIDC\OpenIDConnect;
 use phpseclib\File\X509;
 use Zend\Mvc\OIDC\Common\Configuration;
 use Zend\Mvc\OIDC\Common\Enum\ServiceEnum;
+use Zend\Mvc\OIDC\Common\Exceptions\CertificateKeyException;
+use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
 use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
+use Zend\Mvc\OIDC\Common\Exceptions\MissingCertificateKeyException;
 use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Infra\HttpClient;
 use Zend\Mvc\OIDC\Custom\Interfaces\CertKeyCacheReaderInterface;
@@ -43,14 +46,21 @@ class CertKeyService
 
     /**
      * @param Configuration $configuration
+     * @param array $jwtHeaders
      * @param ServiceLocatorInterface $serviceManager
      *
      * @return string|null
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
      * @throws JwkRecoveryException
+     * @throws MissingCertificateKeyException
      * @throws OidcConfigurationDiscoveryException
      */
-    public function resolveCertificate(Configuration $configuration, ServiceLocatorInterface $serviceManager): ?string
-    {
+    public function resolveCertificate(
+        Configuration $configuration,
+        array $jwtHeaders,
+        ServiceLocatorInterface $serviceManager
+    ): ?string {
         /** @var string|null $certKey */
         $certKey = null;
 
@@ -66,7 +76,7 @@ class CertKeyService
             }
         }
 
-        $certKey = $this->getCertKeyFromServer($configuration);
+        $certKey = $this->getCertKeyFromServer($configuration, $jwtHeaders);
 
         if (!is_null($certKey)) {
             $this->writeCertKey($certKey, $configuration, $serviceManager);
@@ -98,11 +108,16 @@ class CertKeyService
     /**
      * @param Configuration $configuration
      *
+     * @param array $jwtHeaders
+     *
      * @return string
+     * @throws CertificateKeyException
+     * @throws InvalidAuthorizationTokenException
      * @throws JwkRecoveryException
+     * @throws MissingCertificateKeyException
      * @throws OidcConfigurationDiscoveryException
      */
-    private function getCertKeyFromServer(Configuration $configuration): ?string
+    private function getCertKeyFromServer(Configuration $configuration, array $jwtHeaders): string
     {
         $oidcConfiguration = $this->configurationDiscoveryService->discover($configuration);
 
@@ -118,19 +133,62 @@ class CertKeyService
         /** @var array $jwk */
         $jwk = json_decode($response['body'], true);
 
-        if (isset($jwk['keys'])
-            && isset($jwk['keys'][0])
-            && isset($jwk['keys'][0]['x5c'])
-            && isset($jwk['keys'][0]['x5c'][0])) {
+        $certificate = $this->findKeyByIdAndAlg($jwk, $jwtHeaders);
 
-            $certificate = new X509();
-            $certificate->loadX509($jwk['keys'][0]['x5c'][0], X509::FORMAT_PEM);
+        if (is_null($certificate)) {
+            throw new MissingCertificateKeyException("Missing certificate key.");
+        } else {
+            $certKey = $this->loadKeyFromCertificate($certificate);
 
-            $certKey = (string)$certificate->getPublicKey();
-
-            if (!is_null($certKey) && is_string($certKey)) {
+            if (is_null($certKey) || (!is_null($certKey) && $certKey == '')) {
+                throw new CertificateKeyException('Failed to retrieve the token certificate key.');
+            } else {
                 return $certKey;
             }
+        }
+    }
+
+    /**
+     * @param string $certificate
+     *
+     * @return string
+     */
+    private function loadKeyFromCertificate(string $certificate): string
+    {
+        $x509 = new X509();
+        $x509->loadX509($certificate, X509::FORMAT_PEM);
+
+        return (string)$x509->getPublicKey();
+    }
+
+    /**
+     * @param array $jwk
+     * @param array $jwtHeaders
+     *
+     * @return string|null
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     */
+    private function findKeyByIdAndAlg(array $jwk, array $jwtHeaders): ?string
+    {
+        if (isset($jwtHeaders['kid']) && isset($jwtHeaders['alg'])) {
+            if (count($jwk) > 0 && isset($jwk['keys'])) {
+                foreach ($jwk['keys'] as $keys) {
+                    if ($keys['kid'] == $jwtHeaders['kid']
+                        && $keys['alg'] == $jwtHeaders['alg']
+                        && isset($keys['x5c'])
+                        && isset($keys['x5c'][0])) {
+                        return $keys['x5c'][0];
+                    } else {
+                        return null;
+                    }
+                }
+            }
+            else {
+                throw new JwkRecoveryException('Invalid JWK loaded.');
+            }
+        } else {
+            throw new InvalidAuthorizationTokenException('Invalid token header.');
         }
 
         return null;
