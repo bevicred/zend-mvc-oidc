@@ -91,6 +91,12 @@ class Token
     public function hasClaim(string $name, string $value): bool
     {
         if ($this->jwt->hasClaim($name)) {
+            $claimResult = $this->jwt->getClaim($name);
+
+            if (is_array($claimResult)) {
+                return in_array($value, $claimResult);
+            }
+
             return ($this->jwt->getClaim($name) === $value);
         }
 

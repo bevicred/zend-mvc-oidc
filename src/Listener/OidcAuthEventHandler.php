@@ -18,7 +18,9 @@ use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 use Zend\Mvc\OIDC\Common\Model\Token;
 use Zend\Mvc\OIDC\Common\Parse\ConfigurationParser;
+use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
 use Zend\Mvc\OIDC\OpenIDConnect\CertKeyService;
+use Zend\ServiceManager\ServiceManager;
 
 /**
  * Class OidcAuthEventHandler
@@ -94,15 +96,19 @@ class OidcAuthEventHandler
     {
         /** @var Request $request */
         $request = $mvcEvent->getRequest();
-        $this->token = new Token($this->getAuthorizationToken($request));
 
         $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
         if (!$this->allowAnonymous($authorizeConfig)) {
+            $this->token = new Token($this->getAuthorizationToken($request));
+
+            /** @var ServiceManager $serviceManager */
+            $serviceManager = $mvcEvent->getApplication()->getServiceManager();
+
             $certKey = $this->certKeyService->resolveCertificate(
                 $this->configuration,
                 $this->token->getHeaders(),
-                $mvcEvent->getApplication()->getServiceManager()
+                $serviceManager
             );
 
             $this->configuration->setPublicKey($certKey);
@@ -115,6 +121,10 @@ class OidcAuthEventHandler
             }
 
             $this->isAuthorized($authorizeConfig);
+
+            $authInformationProvider = $this->createAuthInformationProvider($this->token->getClaims());
+
+            $serviceManager->setService(AuthInformationProvider::class, $authInformationProvider);
         }
 
         return $mvcEvent;
@@ -147,6 +157,23 @@ class OidcAuthEventHandler
         }
     }
 
+    private function createAuthInformationProvider(array $claimsFromToken): AuthInformationProvider
+    {
+        $authInformationProvider = new AuthInformationProvider();
+
+        $outClaims = [];
+        foreach ($claimsFromToken as $key=>$value){
+            $outClaims[$key] = $value;
+        }
+
+        $reflection = new \ReflectionObject($authInformationProvider);
+        $property = $reflection->getProperty('claims');
+        $property->setAccessible(true);
+        $property->setValue($authInformationProvider, $outClaims);
+
+        return $authInformationProvider;
+    }
+
     /**
      * @param Request $request
      *
@@ -173,7 +200,7 @@ class OidcAuthEventHandler
      */
     private function getAuthorizeConfiguration(Request $request): array
     {
-        $url = $request->getUriString();
+        $url = $request->getUri()->getPath();
 
         if (isset($this->routesConfig[$url]) &&
             isset($this->routesConfig[$url]['options']['defaults'][ConfigurationEnum::AUTHORIZE_CONFIG])) {

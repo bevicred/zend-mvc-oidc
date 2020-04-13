@@ -24,6 +24,7 @@ use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 use Zend\Mvc\OIDC\Common\Parse\ConfigurationParser;
+use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
 use Zend\Mvc\OIDC\Listener\OidcAuthEventHandler;
 use Zend\Mvc\OIDC\OpenIDConnect\CertKeyService;
 use Zend\Mvc\Service\EventManagerFactory;
@@ -169,6 +170,63 @@ class OidcAuthEventHandlerTest extends TestCase
         $mvcEvent->setApplication(new Application($serviceManager));
 
         $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithValidAuthorizationShouldPutAuthInformationProviderInServiceManagerContainingTokenClaims()
+    {
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createJwt('SpecialPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+
+        $serviceManager = $mvcEvent->getApplication()->getServiceManager();
+
+        $expected = $serviceManager->get(AuthInformationProvider::class);
+        $this->assertNotNull($expected);
+        $this->assertInstanceOf(AuthInformationProvider::class, $expected);
+        /** @var AuthInformationProvider $authInformationProvicer */
+        $authInformationProvicer = $expected;
+        $this->assertTrue($authInformationProvicer->hasClaim('user_roles'));
+        $claimValue = $authInformationProvicer->getClaim('user_roles');
+        $this->assertTrue(is_string($claimValue));
+        $this->assertTrue($claimValue == 'SpecialPerson');
     }
 
     public function testHandleWithInvalidTokenShouldThrowsInvalidAuthorizationTokenException()

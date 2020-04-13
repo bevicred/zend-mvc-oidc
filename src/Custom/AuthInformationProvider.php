@@ -14,7 +14,11 @@ class AuthInformationProvider
      */
     private $claims;
 
-    private function setClaim(string $name, string $value): void
+    /**
+     * @param string $name
+     * @param string|array $value
+     */
+    private function setClaim(string $name, $value): void
     {
         if (!is_null($name) && is_string($name) && !is_null($value)) {
             $this->claims = [$name => $value];
@@ -26,7 +30,12 @@ class AuthInformationProvider
         return array_key_exists($name, $this->claims);
     }
 
-    public function getClaim(string $name): mixed
+    /**
+     * @param string $name
+     *
+     * @return string|array
+     */
+    public function getClaim(string $name)
     {
         if ($this->hasClaim($name)) {
             return $this->claims[$name];

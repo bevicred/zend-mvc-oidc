@@ -61,6 +61,21 @@ class TokenTest extends TestCase
             ->getToken($signer, $privateKey);
     }
 
+    private function createJwtWithClaim(string $claimName, string $claimValue): \Lcobucci\JWT\Token
+    {
+        $signer = new Sha256();
+        $privateKey = new Key('file://teste.key');
+
+        return (new Builder())
+            ->issuedBy($this->issuer)
+            ->issuedAt($this->now->getTimestamp())
+            ->canOnlyBeUsedAfter($this->now->getTimestamp())
+            ->expiresAt($this->now->getTimestamp() + 60)
+            ->permittedFor('pos-api.com')
+            ->withClaim($claimName, $claimValue)
+            ->getToken($signer, $privateKey);
+    }
+
     public function testValidateWithCorrectIssuerClaimTokenShouldReturnValidResult()
     {
         // arrange
@@ -177,5 +192,44 @@ class TokenTest extends TestCase
 
         // assert
         $this->assertEquals(ValidationTokenResultEnum::INVALID, $result);
+    }
+
+    public function testGetHeadersForValidJWTShouldReturnArrayWithJWTHeaders()
+    {
+        // arrange
+        $configuration = new Configuration();
+        $configuration->setPublicKey($this->publicKey);
+        $configuration->setRealmId('teste');
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setAudience('pos-api.com');
+
+        $jwt = $this->createJwt();
+
+        $token = new Token($jwt);
+
+        // act
+        $result = $token->getHeaders();
+
+        // assert
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('typ', $result);
+        $this->assertArrayHasKey('alg', $result);
+    }
+
+    public function testHasClaimShouldReturnTrueForExistingJWTClaim()
+    {
+        // arrange
+        $configuration = new Configuration();
+        $configuration->setPublicKey($this->publicKey);
+        $configuration->setRealmId('teste');
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setAudience('pos-api.com');
+
+        $jwt = $this->createJwtWithClaim('user_roles', 'TestValue');
+
+        $token = new Token($jwt);
+
+        // act
+        $this->assertTrue($token->hasClaim('user_roles', 'TestValue'));
     }
 }
