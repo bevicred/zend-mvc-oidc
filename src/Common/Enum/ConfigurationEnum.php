@@ -14,4 +14,8 @@ interface ConfigurationEnum
     const REALM_ID = 'realmId';
     const CLIENT_ID = 'client_id';
     const AUDIENCE = 'audience';
+
+    const AUTHORIZE_CONFIG = 'authorize';
+    const REQUIRE_CLAIM = 'requireClaim';
+    const ALLOW_ANONYMOUS = 'allowAnonymous';
 }

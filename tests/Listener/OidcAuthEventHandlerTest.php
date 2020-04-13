@@ -126,8 +126,149 @@ class OidcAuthEventHandlerTest extends TestCase
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
      */
-    public function testHandle()
+    public function testHandleWithValidAuthorization()
     {
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createJwt('SpecialPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithInvalidTokenShouldThrowsInvalidAuthorizationTokenException()
+    {
+        $this->expectException(InvalidAuthorizationTokenException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createInvalidJwt('SpecialPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithExpiredTokenShouldThrowsInvalidAuthorizationTokenException()
+    {
+        $this->expectException(InvalidAuthorizationTokenException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createExpiredJwt('SpecialPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithoutRequiredClaimForAuthorizationShouldThrowsAuthorizeException()
+    {
+        $this->expectException(AuthorizeException::class);
+
         $configuration = new Configuration();
         $configuration->setAuthServiceUrl('http://issuedby.com');
         $configuration->setRealmId('teste');
@@ -171,6 +312,203 @@ class OidcAuthEventHandlerTest extends TestCase
         $handler->handle($mvcEvent);
     }
 
+    public function testHandleWithoutAuthorizationHeaderShouldThrowsBasicAuthorizationException()
+    {
+        $this->expectException(BasicAuthorizationException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->never())
+            ->method('resolveCertificate');
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createJwt('CommonPerson', $configuration);
+        //$request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithoutAuthorizeConfigurationShouldThrowsAuthorizeException()
+    {
+        $this->expectException(AuthorizeException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->never())
+            ->method('resolveCertificate');
+
+        $moduleConfig = [
+            'router' => [
+                'routes' => [
+                    '/auth/login' => [
+                        'type'    => Literal::class,
+                        'options' => [
+                            'route'    => '/auth/login',
+                            'defaults' => [
+                                'controller' => 'SomeController::class',
+                                'action'     => 'login'
+                            ],
+                        ],
+                    ],
+                    'policies'    => [
+                        'Administrator' => [
+                            'requireClaim' => 'user_roles',
+                            'values'       => [
+                                'read:person',
+                                'write:person'
+                            ]
+                        ]
+                    ],
+                    'whitelist'   => [
+                        '/login'
+                    ]
+                ]
+            ]
+        ];
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createJwt('CommonPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWhenAuthorizeConfigurationAllowAnonymousShouldNotVerifyToken()
+    {
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->never())
+            ->method('resolveCertificate');
+
+        $moduleConfig = [
+            'router' => [
+                'routes' => [
+                    '/auth/login' => [
+                        'type'    => Literal::class,
+                        'options' => [
+                            'route'    => '/auth/login',
+                            'defaults' => [
+                                'controller' => 'SomeController::class',
+                                'action'     => 'login',
+                                'authorize' => [
+                                    'allowAnonymous'
+                                ]
+                            ],
+                        ],
+                    ],
+                    'policies'    => [
+                        'Administrator' => [
+                            'requireClaim' => 'user_roles',
+                            'values'       => [
+                                'read:person',
+                                'write:person'
+                            ]
+                        ]
+                    ],
+                    'whitelist'   => [
+                        '/login'
+                    ]
+                ]
+            ]
+        ];
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createJwt('CommonPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
     private function createJwt(string $claim, Configuration $configuration): Token
     {
         $signer = new Sha256();
@@ -183,6 +521,40 @@ class OidcAuthEventHandlerTest extends TestCase
             ->issuedAt($now->getTimestamp())
             ->canOnlyBeUsedAfter($now->getTimestamp())
             ->expiresAt($now->getTimestamp() + 60)
+            ->permittedFor($configuration->getAudience())
+            ->withClaim('user_roles', $claim)
+            ->getToken($signer, $key);
+    }
+
+    private function createInvalidJwt(string $claim, Configuration $configuration): Token
+    {
+        $signer = new Sha256();
+        $key = new Key('file://teste.key');
+
+        $now = new DateTime('now');
+
+        return (new Builder())
+            ->issuedBy('invalid issuer')
+            ->issuedAt($now->getTimestamp())
+            ->canOnlyBeUsedAfter($now->getTimestamp())
+            ->expiresAt($now->getTimestamp() + 60)
+            ->permittedFor($configuration->getAudience())
+            ->withClaim('user_roles', $claim)
+            ->getToken($signer, $key);
+    }
+
+    private function createExpiredJwt(string $claim, Configuration $configuration): Token
+    {
+        $signer = new Sha256();
+        $key = new Key('file://teste.key');
+
+        $now = new DateTime('now');
+
+        return (new Builder())
+            ->issuedBy($configuration->getRealmUrl())
+            ->issuedAt($now->getTimestamp() - 60)
+            ->canOnlyBeUsedAfter($now->getTimestamp() - 60)
+            ->expiresAt($now->getTimestamp() - 30)
             ->permittedFor($configuration->getAudience())
             ->withClaim('user_roles', $claim)
             ->getToken($signer, $key);

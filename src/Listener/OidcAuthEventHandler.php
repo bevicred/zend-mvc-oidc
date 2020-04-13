@@ -6,6 +6,7 @@ use Exception;
 use Zend\Http\Request;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Common\Configuration;
+use Zend\Mvc\OIDC\Common\Enum\ConfigurationEnum;
 use Zend\Mvc\OIDC\Common\Enum\ValidationTokenResultEnum;
 use Zend\Mvc\OIDC\Common\Exceptions\AudienceConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
@@ -81,6 +82,7 @@ class OidcAuthEventHandler
     /**
      * @param MvcEvent $mvcEvent
      *
+     * @return MvcEvent
      * @throws AuthorizeException
      * @throws BasicAuthorizationException
      * @throws InvalidAuthorizationTokenException
@@ -88,7 +90,7 @@ class OidcAuthEventHandler
      * @throws OidcConfigurationDiscoveryException
      * @throws Exception
      */
-    public function handle(MvcEvent $mvcEvent)
+    public function handle(MvcEvent $mvcEvent): MvcEvent
     {
         /** @var Request $request */
         $request = $mvcEvent->getRequest();
@@ -96,22 +98,31 @@ class OidcAuthEventHandler
 
         $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
-        $certKey = $this->certKeyService->resolveCertificate(
-            $this->configuration,
-            $this->token->getHeaders(),
-            $mvcEvent->getApplication()->getServiceManager()
-        );
+        if (!$this->allowAnonymous($authorizeConfig)) {
+            $certKey = $this->certKeyService->resolveCertificate(
+                $this->configuration,
+                $this->token->getHeaders(),
+                $mvcEvent->getApplication()->getServiceManager()
+            );
 
-        $this->configuration->setPublicKey($certKey);
-        $result = $this->token->validate($this->configuration);
+            $this->configuration->setPublicKey($certKey);
+            $result = $this->token->validate($this->configuration);
 
-        if ($result == ValidationTokenResultEnum::INVALID) {
-            throw new InvalidAuthorizationTokenException('Invalid authorization token.');
-        } else if ($result == ValidationTokenResultEnum::EXPIRED) {
-            throw new InvalidAuthorizationTokenException('Expired authorization token.');
+            if ($result == ValidationTokenResultEnum::INVALID) {
+                throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+            } else if ($result == ValidationTokenResultEnum::EXPIRED) {
+                throw new InvalidAuthorizationTokenException('Expired authorization token.');
+            }
+
+            $this->isAuthorized($authorizeConfig);
         }
 
-        $this->isAuthorized($authorizeConfig);
+        return $mvcEvent;
+    }
+
+    private function allowAnonymous(array $authorizeConfig): bool
+    {
+        return (count($authorizeConfig) > 0 && isset($authorizeConfig[0]) && $authorizeConfig[0] == ConfigurationEnum::ALLOW_ANONYMOUS);
     }
 
     /**
@@ -122,7 +133,7 @@ class OidcAuthEventHandler
     private function isAuthorized(array $authorizeConfig): void
     {
         $result = false;
-        $claimName = $authorizeConfig['requireClaim'];
+        $claimName = $authorizeConfig[ConfigurationEnum::REQUIRE_CLAIM];
 
         foreach ($authorizeConfig['values'] as $claimValue) {
             if ($this->token->hasClaim($claimName, $claimValue)) {
@@ -158,16 +169,17 @@ class OidcAuthEventHandler
      * @param Request $request
      *
      * @return array
+     * @throws AuthorizeException
      */
     private function getAuthorizeConfiguration(Request $request): array
     {
         $url = $request->getUriString();
 
         if (isset($this->routesConfig[$url]) &&
-            isset($this->routesConfig[$url]['options']['defaults']['authorize'])) {
-            return $this->routesConfig[$url]['options']['defaults']['authorize'];
+            isset($this->routesConfig[$url]['options']['defaults'][ConfigurationEnum::AUTHORIZE_CONFIG])) {
+            return $this->routesConfig[$url]['options']['defaults'][ConfigurationEnum::AUTHORIZE_CONFIG];
         }
 
-        return [];
+        throw new AuthorizeException('Authorization failed.');
     }
 }
