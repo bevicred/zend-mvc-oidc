@@ -52,7 +52,7 @@ class ConfigurationDiscoveryServiceTest extends TestCase
             ->willReturn(
                 [
                     'code' => 200,
-                    'body' => $jsonResult
+                    'body' => json_encode($jsonResult)
                 ]
             );
 
