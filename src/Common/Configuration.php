@@ -34,6 +34,20 @@ class Configuration
      */
     private $audience;
 
+    /**
+     * @var null|string
+     */
+    private $invalidTokenExceptionMapping;
+
+    /**
+     * @var null|string
+     */
+    private $expiredTokenExceptionMapping;
+
+    /**
+     * @var null|string
+     */
+    private $forbiddenTokenExceptionMapping;
 
     /**
      * @return string
@@ -124,5 +138,52 @@ class Configuration
         $this->audience = $audience;
     }
 
+    /**
+     * @return string|null
+     */
+    public function getInvalidTokenExceptionMapping(): ?string
+    {
+        return $this->invalidTokenExceptionMapping;
+    }
+
+    /**
+     * @param string|null $invalidTokenExceptionMapping
+     */
+    public function setInvalidTokenExceptionMapping(?string $invalidTokenExceptionMapping): void
+    {
+        $this->invalidTokenExceptionMapping = $invalidTokenExceptionMapping;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getExpiredTokenExceptionMapping(): ?string
+    {
+        return $this->expiredTokenExceptionMapping;
+    }
+
+    /**
+     * @param string|null $expiredTokenExceptionMapping
+     */
+    public function setExpiredTokenExceptionMapping(?string $expiredTokenExceptionMapping): void
+    {
+        $this->expiredTokenExceptionMapping = $expiredTokenExceptionMapping;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getForbiddenTokenExceptionMapping(): ?string
+    {
+        return $this->forbiddenTokenExceptionMapping;
+    }
+
+    /**
+     * @param string|null $forbiddenTokenExceptionMapping
+     */
+    public function setForbiddenTokenExceptionMapping(?string $forbiddenTokenExceptionMapping): void
+    {
+        $this->forbiddenTokenExceptionMapping = $forbiddenTokenExceptionMapping;
+    }
 
 }

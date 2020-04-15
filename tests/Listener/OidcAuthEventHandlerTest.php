@@ -9,6 +9,9 @@ use Lcobucci\JWT\Signer\Rsa\Sha256;
 use Lcobucci\JWT\Token;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Tests\Shared\ExternalExceptions\ExternalAuthenticationTokenException;
+use Tests\Shared\ExternalExceptions\ExternalAuthorizationTokenException;
+use Tests\Shared\ExternalExceptions\ExternalInvalidTokenException;
 use Zend\Http\Request;
 use Zend\Http\Response;
 use Zend\Mvc\Application;
@@ -71,11 +74,16 @@ class OidcAuthEventHandlerTest extends TestCase
             ->getMock();
 
         $this->applicationConfig = [
-            'auth_service' => [
+            'zend_mvc_oidc' => [
                 'auth_service_url' => 'http://34.95.175.142:8080',
                 'realmId'          => '',
                 'client_id'        => 'demo-app',
-                'audience'         => 'pos-api.com'
+                'audience'         => 'pos-api.com',
+                'exception_mapping' => [
+                    'invalid_token' => 'Tests\Shared\ExternalExceptions\ExternalAuthenticationTokenException',
+                    'expired_token' => 'Tests\Shared\ExternalExceptions\ExternalAuthenticationTokenException',
+                    'forbidden_token' => 'Tests\Shared\ExternalExceptions\ExternalAuthorizationTokenException',
+                ]
             ]
         ];
 
@@ -239,6 +247,57 @@ class OidcAuthEventHandlerTest extends TestCase
         $configuration->setClientId('demo-app');
         $configuration->setAudience('pos-api.com');
 
+        //$configuration->setInvalidTokenExceptionMapping('Tests\Shared\ExternalExceptions\ExternalAuthenticationTokenException');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createInvalidJwt('SpecialPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithInvalidTokenWithExternalExceptionConfiguredShouldThrowsTheExternalException()
+    {
+        $this->expectException(ExternalAuthenticationTokenException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $configuration->setInvalidTokenExceptionMapping('Tests\Shared\ExternalExceptions\ExternalAuthenticationTokenException');
+
         $this->configurationParser
             ->expects($this->once())
             ->method('parse')
@@ -323,6 +382,55 @@ class OidcAuthEventHandlerTest extends TestCase
         $handler->handle($mvcEvent);
     }
 
+    public function testHandleWithExpiredTokenWithExternalExceptionConfiguredShouldThrowsTheExternalException()
+    {
+        $this->expectException(ExternalAuthenticationTokenException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $configuration->setExpiredTokenExceptionMapping('Tests\Shared\ExternalExceptions\ExternalAuthenticationTokenException');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createExpiredJwt('SpecialPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
     public function testHandleWithoutRequiredClaimForAuthorizationShouldThrowsAuthorizeException()
     {
         $this->expectException(AuthorizeException::class);
@@ -332,6 +440,55 @@ class OidcAuthEventHandlerTest extends TestCase
         $configuration->setRealmId('teste');
         $configuration->setClientId('demo-app');
         $configuration->setAudience('pos-api.com');
+
+        $this->configurationParser
+            ->expects($this->once())
+            ->method('parse')
+            ->willReturn($configuration);
+
+        $path = str_replace('\\', '/', realpath('teste.key.pub'));
+        $resultCert = file_get_contents($path);
+
+        $this->certKeyService
+            ->expects($this->once())
+            ->method('resolveCertificate')
+            ->willReturn($resultCert);
+
+        $handler = new OidcAuthEventHandler(
+            $this->applicationConfig,
+            $this->moduleConfig,
+            $this->configurationParser,
+            $this->certKeyService
+        );
+
+        $serviceManager = new ServiceManager();
+        $serviceManager->setFactory('EventManager', new EventManagerFactory());
+        $request = new Request();
+
+        $token = $this->createJwt('CommonPerson', $configuration);
+        $request->getHeaders()->addHeaderLine('Authorization', 'Bearer ' . $token);
+        $request->setUri('/auth/login');
+        $serviceManager->setService('Request', $request);
+        $serviceManager->setService('Response', new Response());
+
+        $mvcEvent = new MvcEvent();
+        $mvcEvent->setRequest($request);
+        $mvcEvent->setApplication(new Application($serviceManager));
+
+        $handler->handle($mvcEvent);
+    }
+
+    public function testHandleWithoutRequiredClaimForAuthorizationWithExternalExceptionConfiguredShouldThrowstheExternalException()
+    {
+        $this->expectException(ExternalAuthorizationTokenException::class);
+
+        $configuration = new Configuration();
+        $configuration->setAuthServiceUrl('http://issuedby.com');
+        $configuration->setRealmId('teste');
+        $configuration->setClientId('demo-app');
+        $configuration->setAudience('pos-api.com');
+
+        $configuration->setForbiddenTokenExceptionMapping('Tests\Shared\ExternalExceptions\ExternalAuthorizationTokenException');
 
         $this->configurationParser
             ->expects($this->once())

@@ -115,9 +115,9 @@ class OidcAuthEventHandler
             $result = $this->token->validate($this->configuration);
 
             if ($result == ValidationTokenResultEnum::INVALID) {
-                throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+                $this->resolveInvalidTokenException();
             } else if ($result == ValidationTokenResultEnum::EXPIRED) {
-                throw new InvalidAuthorizationTokenException('Expired authorization token.');
+                $this->resolveExpiredTokenException();
             }
 
             $this->isAuthorized($authorizeConfig);
@@ -128,6 +128,45 @@ class OidcAuthEventHandler
         }
 
         return $mvcEvent;
+    }
+
+    /**
+     * @throws InvalidAuthorizationTokenException
+     */
+    private function resolveInvalidTokenException():void
+    {
+        $exceptionClass = $this->configuration->getInvalidTokenExceptionMapping();
+
+        if (is_null($exceptionClass)){
+            throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+        } else {
+            throw new $exceptionClass('Invalid authorization token.');
+        }
+
+    }
+
+    private function resolveExpiredTokenException():void
+    {
+        $exceptionClass = $this->configuration->getExpiredTokenExceptionMapping();
+
+        if (is_null($exceptionClass)){
+            throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+        } else {
+            throw new $exceptionClass('Expired authorization token.');
+        }
+
+    }
+
+    private function resolveAuthorizationException():void
+    {
+        $exceptionClass = $this->configuration->getForbiddenTokenExceptionMapping();
+
+        if (is_null($exceptionClass)){
+            throw new AuthorizeException('Authorization failed.');
+        } else {
+            throw new $exceptionClass('Authorization failed.');
+        }
+
     }
 
     private function allowAnonymous(array $authorizeConfig): bool
@@ -153,7 +192,7 @@ class OidcAuthEventHandler
         }
 
         if (!$result) {
-            throw new AuthorizeException('Authorization failed.');
+            $this->resolveAuthorizationException();
         }
     }
 
