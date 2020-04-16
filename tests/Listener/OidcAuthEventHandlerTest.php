@@ -22,6 +22,7 @@ use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
 use Zend\Mvc\OIDC\Common\Exceptions\CertificateKeyException;
 use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
+use Zend\Mvc\OIDC\Common\Exceptions\InvalidExceptionMappingConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
@@ -431,6 +432,17 @@ class OidcAuthEventHandlerTest extends TestCase
         $handler->handle($mvcEvent);
     }
 
+    /**
+     * @throws AudienceConfigurationException
+     * @throws AuthorizeException
+     * @throws BasicAuthorizationException
+     * @throws InvalidAuthorizationTokenException
+     * @throws JwkRecoveryException
+     * @throws OidcConfigurationDiscoveryException
+     * @throws RealmConfigurationException
+     * @throws ServiceUrlConfigurationException
+     * @throws InvalidExceptionMappingConfigurationException
+     */
     public function testHandleWithoutRequiredClaimForAuthorizationShouldThrowsAuthorizeException()
     {
         $this->expectException(AuthorizeException::class);

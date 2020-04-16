@@ -7,11 +7,13 @@ use Zend\Http\Request;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Common\Configuration;
 use Zend\Mvc\OIDC\Common\Enum\ConfigurationEnum;
+use Zend\Mvc\OIDC\Common\Enum\ServiceEnum;
 use Zend\Mvc\OIDC\Common\Enum\ValidationTokenResultEnum;
 use Zend\Mvc\OIDC\Common\Exceptions\AudienceConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
 use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
 use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
+use Zend\Mvc\OIDC\Common\Exceptions\InvalidExceptionMappingConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
@@ -19,6 +21,7 @@ use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 use Zend\Mvc\OIDC\Common\Model\Token;
 use Zend\Mvc\OIDC\Common\Parse\ConfigurationParser;
 use Zend\Mvc\OIDC\Custom\AuthInformationProvider;
+use Zend\Mvc\OIDC\Custom\Interfaces\AuthResultHandlerInterface;
 use Zend\Mvc\OIDC\OpenIDConnect\CertKeyService;
 use Zend\ServiceManager\ServiceManager;
 
@@ -64,6 +67,7 @@ class OidcAuthEventHandler
      * @throws AudienceConfigurationException
      * @throws RealmConfigurationException
      * @throws ServiceUrlConfigurationException
+     * @throws InvalidExceptionMappingConfigurationException
      */
     public function __construct(
         array $applicationConfig,
@@ -112,75 +116,140 @@ class OidcAuthEventHandler
             );
 
             $this->configuration->setPublicKey($certKey);
-            $result = $this->token->validate($this->configuration);
+            $tokenValidationResult = $this->token->validate($this->configuration);
 
-            if ($result == ValidationTokenResultEnum::INVALID) {
-                $this->resolveInvalidTokenException();
-            } else if ($result == ValidationTokenResultEnum::EXPIRED) {
-                $this->resolveExpiredTokenException();
+            $hasCustomResultRules = $serviceManager->has(ServiceEnum::AUTH_RESULT_HANDLER);
+
+            if (!$hasCustomResultRules) {
+                $this->resolveTokenResultWithStockRule($tokenValidationResult);
             }
 
-            $this->isAuthorized($authorizeConfig);
+            $authorizationResult = $this->isAuthorized($authorizeConfig);
 
-            $authInformationProvider = $this->createAuthInformationProvider($this->token->getClaims());
+            if ($hasCustomResultRules) {
+                $this->resolveDelegateResult($tokenValidationResult, $authorizationResult, $serviceManager);
+            } else if (!$authorizationResult) {
+                $this->resolveAuthorizationException();
+            }
 
-            $serviceManager->setService(AuthInformationProvider::class, $authInformationProvider);
+            $this->deliverAuthInformationProvider($serviceManager);
         }
 
         return $mvcEvent;
     }
 
     /**
+     * @param int $tokenValidationResult
+     * @param bool $authorizationResult
+     * @param ServiceManager $serviceManager
+     *
+     */
+    private function resolveDelegateResult(
+        int $tokenValidationResult,
+        bool $authorizationResult,
+        ServiceManager $serviceManager
+    ): void {
+        /** @var AuthResultHandlerInterface $authResultHandler */
+        $authResultHandler = $serviceManager->get(ServiceEnum::AUTH_RESULT_HANDLER);
+        $authResultHandler->handle($tokenValidationResult, $authorizationResult);
+    }
+
+    /**
+     * @param int $result
+     *
      * @throws InvalidAuthorizationTokenException
      */
-    private function resolveInvalidTokenException():void
+    private function resolveTokenResultWithStockRule(int $result): void
+    {
+        if ($result == ValidationTokenResultEnum::INVALID) {
+            $this->resolveInvalidTokenException();
+        } else if ($result == ValidationTokenResultEnum::EXPIRED) {
+            $this->resolveExpiredTokenException();
+        }
+    }
+
+    /**
+     * @param ServiceManager $serviceManager
+     *
+     * @throws \ReflectionException
+     */
+    private
+    function deliverAuthInformationProvider(
+        ServiceManager $serviceManager
+    ): void {
+        $authInformationProvider = $this->createAuthInformationProvider($this->token->getClaims());
+
+        $serviceManager->setService(AuthInformationProvider::class, $authInformationProvider);
+    }
+
+    /**
+     * @throws InvalidAuthorizationTokenException
+     */
+    private
+    function resolveInvalidTokenException(): void
     {
         $exceptionClass = $this->configuration->getInvalidTokenExceptionMapping();
 
-        if (is_null($exceptionClass)){
+        if (is_null($exceptionClass)) {
             throw new InvalidAuthorizationTokenException('Invalid authorization token.');
         } else {
             throw new $exceptionClass('Invalid authorization token.');
         }
-
     }
 
-    private function resolveExpiredTokenException():void
+    /**
+     * @throws InvalidAuthorizationTokenException
+     */
+    private
+    function resolveExpiredTokenException(): void
     {
         $exceptionClass = $this->configuration->getExpiredTokenExceptionMapping();
 
-        if (is_null($exceptionClass)){
+        if (is_null($exceptionClass)) {
             throw new InvalidAuthorizationTokenException('Invalid authorization token.');
         } else {
             throw new $exceptionClass('Expired authorization token.');
         }
-
     }
 
-    private function resolveAuthorizationException():void
+    /**
+     * @throws AuthorizeException
+     */
+    private
+    function resolveAuthorizationException(): void
     {
         $exceptionClass = $this->configuration->getForbiddenTokenExceptionMapping();
 
-        if (is_null($exceptionClass)){
+        if (is_null($exceptionClass)) {
             throw new AuthorizeException('Authorization failed.');
         } else {
             throw new $exceptionClass('Authorization failed.');
         }
-
-    }
-
-    private function allowAnonymous(array $authorizeConfig): bool
-    {
-        return (count($authorizeConfig) > 0 && isset($authorizeConfig[0]) && $authorizeConfig[0] == ConfigurationEnum::ALLOW_ANONYMOUS);
     }
 
     /**
      * @param array $authorizeConfig
      *
-     * @throws AuthorizeException
+     * @return bool
      */
-    private function isAuthorized(array $authorizeConfig): void
-    {
+    private
+    function allowAnonymous(
+        array $authorizeConfig
+    ): bool {
+        return (count(
+                $authorizeConfig
+            ) > 0 && isset($authorizeConfig[0]) && $authorizeConfig[0] == ConfigurationEnum::ALLOW_ANONYMOUS);
+    }
+
+    /**
+     * @param array $authorizeConfig
+     *
+     * @return bool
+     */
+    private
+    function isAuthorized(
+        array $authorizeConfig
+    ): bool {
         $result = false;
         $claimName = $authorizeConfig[ConfigurationEnum::REQUIRE_CLAIM];
 
@@ -191,17 +260,23 @@ class OidcAuthEventHandler
             }
         }
 
-        if (!$result) {
-            $this->resolveAuthorizationException();
-        }
+        return $result;
     }
 
-    private function createAuthInformationProvider(array $claimsFromToken): AuthInformationProvider
-    {
+    /**
+     * @param array $claimsFromToken
+     *
+     * @return AuthInformationProvider
+     * @throws \ReflectionException
+     */
+    private
+    function createAuthInformationProvider(
+        array $claimsFromToken
+    ): AuthInformationProvider {
         $authInformationProvider = new AuthInformationProvider();
 
         $outClaims = [];
-        foreach ($claimsFromToken as $key=>$value){
+        foreach ($claimsFromToken as $key => $value) {
             $outClaims[$key] = $value;
         }
 
@@ -219,8 +294,10 @@ class OidcAuthEventHandler
      * @return string
      * @throws BasicAuthorizationException
      */
-    private function getAuthorizationToken(Request $request): string
-    {
+    private
+    function getAuthorizationToken(
+        Request $request
+    ): string {
         $headers = $request->getHeaders('Authorization', null);
 
         if (!is_null($headers)) {
@@ -237,8 +314,10 @@ class OidcAuthEventHandler
      * @return array
      * @throws AuthorizeException
      */
-    private function getAuthorizeConfiguration(Request $request): array
-    {
+    private
+    function getAuthorizeConfiguration(
+        Request $request
+    ): array {
         $url = $request->getUri()->getPath();
 
         if (isset($this->routesConfig[$url]) &&
