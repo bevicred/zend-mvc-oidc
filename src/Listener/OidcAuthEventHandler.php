@@ -89,50 +89,55 @@ class OidcAuthEventHandler
      * @param MvcEvent $mvcEvent
      *
      * @return MvcEvent
-     * @throws AuthorizeException
-     * @throws BasicAuthorizationException
-     * @throws InvalidAuthorizationTokenException
-     * @throws JwkRecoveryException
-     * @throws OidcConfigurationDiscoveryException
-     * @throws Exception
      */
     public function handle(MvcEvent $mvcEvent): MvcEvent
     {
-        /** @var Request $request */
-        $request = $mvcEvent->getRequest();
+        try {
+            /** @var Request $request */
+            $request = $mvcEvent->getRequest();
 
-        $authorizeConfig = $this->getAuthorizeConfiguration($request);
+            $authorizeConfig = $this->getAuthorizeConfiguration($request);
 
-        if (!$this->allowAnonymous($authorizeConfig)) {
-            $this->token = new Token($this->getAuthorizationToken($request));
+            if (!$this->allowAnonymous($authorizeConfig)) {
+                $this->token = new Token($this->getAuthorizationToken($request));
 
-            /** @var ServiceManager $serviceManager */
-            $serviceManager = $mvcEvent->getApplication()->getServiceManager();
+                /** @var ServiceManager $serviceManager */
+                $serviceManager = $mvcEvent->getApplication()->getServiceManager();
 
-            $certKey = $this->certKeyService->resolveCertificate(
-                $this->configuration,
-                $this->token->getHeaders(),
-                $serviceManager
-            );
+                $certKey = $this->certKeyService->resolveCertificate(
+                    $this->configuration,
+                    $this->token->getHeaders(),
+                    $serviceManager
+                );
 
-            $this->configuration->setPublicKey($certKey);
-            $tokenValidationResult = $this->token->validate($this->configuration);
+                $this->configuration->setPublicKey($certKey);
+                $tokenValidationResult = $this->token->validate($this->configuration);
 
-            $hasCustomResultRules = $serviceManager->has(ServiceEnum::AUTH_RESULT_HANDLER);
+                $this->deliverAuthInformationProvider($serviceManager);
 
-            if (!$hasCustomResultRules) {
-                $this->resolveTokenResultWithStockRule($tokenValidationResult);
+                $hasCustomResultRules = $serviceManager->has(ServiceEnum::AUTH_RESULT_HANDLER);
+
+                if (!$hasCustomResultRules) {
+                    $this->resolveTokenResultWithStockRule($tokenValidationResult);
+                }
+
+                $authorizationResult = $this->isAuthorized($authorizeConfig);
+
+                if ($hasCustomResultRules) {
+                    $this->resolveDelegateResult($tokenValidationResult, $authorizationResult, $serviceManager);
+                } else if (!$authorizationResult) {
+                    $this->resolveAuthorizationException();
+                }
             }
+        } catch (\Throwable $ex) {
+            $mvcEvent->setError('AuthError');
+            $mvcEvent->setParam('exception', $ex);
 
-            $authorizationResult = $this->isAuthorized($authorizeConfig);
+            $mvcEvent->stopPropagation(true);
+            $mvcEvent->setName(MvcEvent::EVENT_DISPATCH_ERROR);
 
-            if ($hasCustomResultRules) {
-                $this->resolveDelegateResult($tokenValidationResult, $authorizationResult, $serviceManager);
-            } else if (!$authorizationResult) {
-                $this->resolveAuthorizationException();
-            }
-
-            $this->deliverAuthInformationProvider($serviceManager);
+            $target = $mvcEvent->getTarget();
+            $target->getEventManager()->triggerEvent($mvcEvent);
         }
 
         return $mvcEvent;
@@ -173,8 +178,7 @@ class OidcAuthEventHandler
      *
      * @throws \ReflectionException
      */
-    private
-    function deliverAuthInformationProvider(
+    private function deliverAuthInformationProvider(
         ServiceManager $serviceManager
     ): void {
         $authInformationProvider = $this->createAuthInformationProvider($this->token->getClaims());
@@ -185,8 +189,7 @@ class OidcAuthEventHandler
     /**
      * @throws InvalidAuthorizationTokenException
      */
-    private
-    function resolveInvalidTokenException(): void
+    private function resolveInvalidTokenException(): void
     {
         $exceptionClass = $this->configuration->getInvalidTokenExceptionMapping();
 
@@ -200,13 +203,12 @@ class OidcAuthEventHandler
     /**
      * @throws InvalidAuthorizationTokenException
      */
-    private
-    function resolveExpiredTokenException(): void
+    private function resolveExpiredTokenException(): void
     {
         $exceptionClass = $this->configuration->getExpiredTokenExceptionMapping();
 
         if (is_null($exceptionClass)) {
-            throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+            throw new InvalidAuthorizationTokenException('Expired authorization token.');
         } else {
             throw new $exceptionClass('Expired authorization token.');
         }
@@ -215,8 +217,7 @@ class OidcAuthEventHandler
     /**
      * @throws AuthorizeException
      */
-    private
-    function resolveAuthorizationException(): void
+    private function resolveAuthorizationException(): void
     {
         $exceptionClass = $this->configuration->getForbiddenTokenExceptionMapping();
 
@@ -232,10 +233,8 @@ class OidcAuthEventHandler
      *
      * @return bool
      */
-    private
-    function allowAnonymous(
-        array $authorizeConfig
-    ): bool {
+    private function allowAnonymous(array $authorizeConfig): bool
+    {
         return (count(
                 $authorizeConfig
             ) > 0 && isset($authorizeConfig[0]) && $authorizeConfig[0] == ConfigurationEnum::ALLOW_ANONYMOUS);
@@ -246,10 +245,8 @@ class OidcAuthEventHandler
      *
      * @return bool
      */
-    private
-    function isAuthorized(
-        array $authorizeConfig
-    ): bool {
+    private function isAuthorized(array $authorizeConfig): bool
+    {
         $result = false;
         $claimName = $authorizeConfig[ConfigurationEnum::REQUIRE_CLAIM];
 
@@ -269,10 +266,8 @@ class OidcAuthEventHandler
      * @return AuthInformationProvider
      * @throws \ReflectionException
      */
-    private
-    function createAuthInformationProvider(
-        array $claimsFromToken
-    ): AuthInformationProvider {
+    private function createAuthInformationProvider(array $claimsFromToken): AuthInformationProvider
+    {
         $authInformationProvider = new AuthInformationProvider();
 
         $outClaims = [];
@@ -292,12 +287,10 @@ class OidcAuthEventHandler
      * @param Request $request
      *
      * @return string
-     * @throws BasicAuthorizationException
+     * @throws InvalidAuthorizationTokenException
      */
-    private
-    function getAuthorizationToken(
-        Request $request
-    ): string {
+    private function getAuthorizationToken(Request $request): string
+    {
         $headers = $request->getHeaders('Authorization', null);
 
         if (!is_null($headers)) {
@@ -305,19 +298,17 @@ class OidcAuthEventHandler
             return str_replace('Authorization: Bearer ', null, $tokenFromHeader);
         }
 
-        throw new BasicAuthorizationException('Authorization exception.');
+        $this->resolveInvalidTokenException();
     }
 
     /**
      * @param Request $request
      *
      * @return array
-     * @throws AuthorizeException
+     * @throws InvalidAuthorizationTokenException
      */
-    private
-    function getAuthorizeConfiguration(
-        Request $request
-    ): array {
+    private function getAuthorizeConfiguration(Request $request): array
+    {
         $url = $request->getUri()->getPath();
 
         if (isset($this->routesConfig[$url]) &&
@@ -325,6 +316,6 @@ class OidcAuthEventHandler
             return $this->routesConfig[$url]['options']['defaults'][ConfigurationEnum::AUTHORIZE_CONFIG];
         }
 
-        throw new AuthorizeException('Authorization failed.');
+        $this->resolveInvalidTokenException();
     }
 }
