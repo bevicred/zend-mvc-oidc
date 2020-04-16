@@ -194,9 +194,9 @@ class OidcAuthEventHandler
         $exceptionClass = $this->configuration->getInvalidTokenExceptionMapping();
 
         if (is_null($exceptionClass)) {
-            throw new InvalidAuthorizationTokenException('Invalid authorization token.');
+            throw new InvalidAuthorizationTokenException('Invalid authorization token.', 401);
         } else {
-            throw new $exceptionClass('Invalid authorization token.');
+            throw new $exceptionClass('Invalid authorization token.', 401);
         }
     }
 
@@ -208,9 +208,9 @@ class OidcAuthEventHandler
         $exceptionClass = $this->configuration->getExpiredTokenExceptionMapping();
 
         if (is_null($exceptionClass)) {
-            throw new InvalidAuthorizationTokenException('Expired authorization token.');
+            throw new InvalidAuthorizationTokenException('The access token expired.', 401);
         } else {
-            throw new $exceptionClass('Expired authorization token.');
+            throw new $exceptionClass('The access token expired.', 401);
         }
     }
 
@@ -222,9 +222,9 @@ class OidcAuthEventHandler
         $exceptionClass = $this->configuration->getForbiddenTokenExceptionMapping();
 
         if (is_null($exceptionClass)) {
-            throw new AuthorizeException('Authorization failed.');
+            throw new AuthorizeException('Authorization failed.', 403);
         } else {
-            throw new $exceptionClass('Authorization failed.');
+            throw new $exceptionClass('Authorization failed.', 403);
         }
     }
 
