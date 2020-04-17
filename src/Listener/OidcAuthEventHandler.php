@@ -2,7 +2,6 @@
 
 namespace Zend\Mvc\OIDC\Listener;
 
-use Exception;
 use Zend\Http\Request;
 use Zend\Mvc\MvcEvent;
 use Zend\Mvc\OIDC\Common\Configuration;
@@ -11,11 +10,8 @@ use Zend\Mvc\OIDC\Common\Enum\ServiceEnum;
 use Zend\Mvc\OIDC\Common\Enum\ValidationTokenResultEnum;
 use Zend\Mvc\OIDC\Common\Exceptions\AudienceConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\AuthorizeException;
-use Zend\Mvc\OIDC\Common\Exceptions\BasicAuthorizationException;
 use Zend\Mvc\OIDC\Common\Exceptions\InvalidAuthorizationTokenException;
 use Zend\Mvc\OIDC\Common\Exceptions\InvalidExceptionMappingConfigurationException;
-use Zend\Mvc\OIDC\Common\Exceptions\JwkRecoveryException;
-use Zend\Mvc\OIDC\Common\Exceptions\OidcConfigurationDiscoveryException;
 use Zend\Mvc\OIDC\Common\Exceptions\RealmConfigurationException;
 use Zend\Mvc\OIDC\Common\Exceptions\ServiceUrlConfigurationException;
 use Zend\Mvc\OIDC\Common\Model\Token;
@@ -131,7 +127,8 @@ class OidcAuthEventHandler
             }
         } catch (\Throwable $ex) {
             $mvcEvent->setError('AuthError');
-            $mvcEvent->setParam('exception', $ex);
+
+            $mvcEvent->setParam('exception', $this->resolveDispatchErrorException($ex));
 
             $mvcEvent->stopPropagation(true);
             $mvcEvent->setName(MvcEvent::EVENT_DISPATCH_ERROR);
@@ -141,6 +138,26 @@ class OidcAuthEventHandler
         }
 
         return $mvcEvent;
+    }
+
+    /**
+     * @param \Throwable $exception
+     *
+     * @return \Throwable
+     */
+    private function resolveDispatchErrorException(\Throwable $exception): \Throwable
+    {
+        if (!is_bool(strpos($exception->getMessage(), 'Error while decoding to JSON'))) {
+            $exceptionClass = $this->configuration->getInvalidTokenExceptionMapping();
+
+            if (is_null($exceptionClass)) {
+                return new InvalidAuthorizationTokenException('Invalid authorization token.', 401);
+            } else {
+                return new $exceptionClass('Invalid authorization token.', 401);
+            }
+        } else {
+            return $exception;
+        }
     }
 
     /**
