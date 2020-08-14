@@ -59,7 +59,7 @@ class ConfigurationDiscoveryService
         $result->setIssuer($responseBody['issuer']);
         $result->setJwksUri($responseBody['jwks_uri']);
         $result->setTokenEndpoint($responseBody['token_endpoint']);
-        $result->setTokenIntrospectionEndpoint($responseBody['token_introspection_endpoint']);
+        $result->setTokenIntrospectionEndpoint($responseBody['introspection_endpoint']);
         $result->setUserInfoEndpoint($responseBody['userinfo_endpoint']);
 
         return $result;

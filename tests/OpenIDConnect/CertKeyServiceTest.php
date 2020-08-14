@@ -75,7 +75,7 @@ class CertKeyServiceTest extends TestCase
         $this->oidcConfiguration->setIssuer($configJson['issuer']);
         $this->oidcConfiguration->setJwksUri($configJson['jwks_uri']);
         $this->oidcConfiguration->setTokenEndpoint($configJson['token_endpoint']);
-        $this->oidcConfiguration->setTokenIntrospectionEndpoint($configJson['token_introspection_endpoint']);
+        $this->oidcConfiguration->setTokenIntrospectionEndpoint($configJson['introspection_endpoint']);
         $this->oidcConfiguration->setUserInfoEndpoint($configJson['userinfo_endpoint']);
     }
 

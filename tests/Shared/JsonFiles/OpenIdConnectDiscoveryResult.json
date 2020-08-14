@@ -2,7 +2,7 @@
   "issuer": "http://34.95.175.142:8080/auth/realms/bvcteste",
   "authorization_endpoint": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/auth",
   "token_endpoint": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/token",
-  "token_introspection_endpoint": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/token/introspect",
+  "introspection_endpoint": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/token/introspect",
   "userinfo_endpoint": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/userinfo",
   "end_session_endpoint": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/logout",
   "jwks_uri": "http://34.95.175.142:8080/auth/realms/bvcteste/protocol/openid-connect/certs",
